@@ -1,6 +1,7 @@
 @echo off
+chcp 1251 >nul
 REM ============================================================================
-REM Батник для запуску PowerShell скрипту визначення характеристик системи
+REM Батник для запуску PowerShell скрипту визначення характеристик системи (JSON)
 REM ============================================================================
 
 REM Перевіряємо, чи запущено з правами адміністратора
@@ -14,16 +15,17 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-REM Визначаємо шлях до скрипту
+REM Визначаємо шлях до JSON-експорту скрипту
 setlocal enabledelayedexpansion
-set "scriptPath=%~dp0get-system-info.ps1"
+set "scriptPath=%~dp0get-system-info-json.ps1"
 
-REM Запускаємо PowerShell скрипт
+REM Запускаємо PowerShell скрипт для збереження інформації в JSON
 echo.
-echo [INFO] Запуск скрипту визначення характеристик системи...
+echo [INFO] Запуск скрипту експорту системної інформації до JSON...
 echo.
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "!scriptPath!"
 
 echo.
+echo [INFO] Готово. Перевірте system-info.json у тій же теці.
 pause
