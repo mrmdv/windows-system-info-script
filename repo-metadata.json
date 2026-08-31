@@ -1,0 +1,17 @@
+{
+  "url": "https://github.com/mrmdv/windows-system-info-script",
+  "owner": "mrmdv",
+  "repo": "windows-system-info-script",
+  "repo_id": 1352120782,
+  "description": "Скрипт для визначення характеристик комп'ютера/ноутбука на Windows 11 (назва, процесор, жорсткий диск, клавіатура, миша, монітор, дата інсталяції ОС)",
+  "languages": [
+    { "name": "PowerShell", "percent": 81.7 },
+    { "name": "Batchfile", "percent": 18.3 }
+  ],
+  "notable_files": [
+    "get-system-info.ps1",
+    "run-system-info.bat",
+    "README.md"
+  ],
+  "saved_at": "2026-08-31T08:40:00Z"
+}
