@@ -14,14 +14,20 @@ function Get-First($scriptBlock) {
 
 $data = [ordered]@{}
 
-# Computer name
-$data.ComputerName = [System.Net.Dns]::GetHostName()
+# Computer info
+$cs = Get-First { Get-WmiObject -Class Win32_ComputerSystem }
+$data.Computer = [ordered]@{
+    Name = [System.Net.Dns]::GetHostName()
+    Manufacturer = if ($cs -and $cs.Manufacturer) { $cs.Manufacturer } else { $null }
+    Model = if ($cs -and $cs.Model) { $cs.Model } else { $null }
+}
 
 # Processor
 $processor = Get-First { Get-WmiObject -Class Win32_Processor }
 if ($processor) {
     $data.Processor = [ordered]@{
-        Name = $processor.Name
+        Manufacturer = if ($processor.Manufacturer) { $processor.Manufacturer } else { $null }
+        Model = if ($processor.Name) { $processor.Name } else { $null }
         NumberOfCores = $processor.NumberOfCores
         NumberOfLogicalProcessors = $processor.NumberOfLogicalProcessors
         MaxClockSpeedMHz = $processor.MaxClockSpeed
@@ -29,17 +35,32 @@ if ($processor) {
     }
 }
 
-# Disks
-$disks = Get-WmiObject -Class Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 }
-$data.Disks = @()
-foreach ($disk in $disks) {
+# Physical disk drives (manufacturer/model)
+$diskDrives = Get-WmiObject -Class Win32_DiskDrive
+$data.DiskDrives = @()
+foreach ($drive in $diskDrives) {
+    $sizeGB = if ($drive.Size) { [math]::Round($drive.Size / 1GB, 2) } else { $null }
+    $data.DiskDrives += [ordered]@{
+        DeviceID = $drive.DeviceID
+        Manufacturer = if ($drive.Manufacturer) { $drive.Manufacturer } elseif ($drive.PNPDeviceID) { $drive.PNPDeviceID } else { $null }
+        Model = if ($drive.Model) { $drive.Model } elseif ($drive.Caption) { $drive.Caption } else { $null }
+        InterfaceType = $drive.InterfaceType
+        SizeGB = $sizeGB
+        SerialNumber = if ($drive.SerialNumber) { $drive.SerialNumber } else { $null }
+    }
+}
+
+# Logical disks (partitions)
+$logicalDisks = Get-WmiObject -Class Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 }
+$data.LogicalDisks = @()
+foreach ($disk in $logicalDisks) {
     if (-not $disk.Size) { continue }
     $sizeGB = [math]::Round($disk.Size / 1GB, 2)
     $freeGB = [math]::Round($disk.FreeSpace / 1GB, 2)
     $usedGB = [math]::Round(($disk.Size - $disk.FreeSpace) / 1GB, 2)
     $percentUsed = if ($sizeGB -ne 0) { [math]::Round(($usedGB / $sizeGB) * 100, 2) } else { 0 }
 
-    $data.Disks += [ordered]@{
+    $data.LogicalDisks += [ordered]@{
         DeviceID = $disk.DeviceID
         SizeGB = $sizeGB
         FreeSpaceGB = $freeGB
@@ -54,7 +75,8 @@ foreach ($disk in $disks) {
 $keyboard = Get-First { Get-WmiObject -Class Win32_Keyboard }
 if ($keyboard) {
     $data.Keyboard = [ordered]@{
-        Description = $keyboard.Description
+        Manufacturer = if ($keyboard.Manufacturer) { $keyboard.Manufacturer } elseif ($keyboard.PNPDeviceID) { $keyboard.PNPDeviceID } else { $null }
+        Model = if ($keyboard.Description) { $keyboard.Description } elseif ($keyboard.Name) { $keyboard.Name } else { $null }
         Status = $keyboard.Status
     }
 }
@@ -63,7 +85,8 @@ if ($keyboard) {
 $mouse = Get-First { Get-WmiObject -Class Win32_PointingDevice }
 if ($mouse) {
     $data.PointingDevice = [ordered]@{
-        Description = $mouse.Description
+        Manufacturer = if ($mouse.Manufacturer) { $mouse.Manufacturer } elseif ($mouse.PNPDeviceID) { $mouse.PNPDeviceID } else { $null }
+        Model = if ($mouse.Description) { $mouse.Description } elseif ($mouse.Name) { $mouse.Name } else { $null }
         Status = $mouse.Status
     }
 }
@@ -72,7 +95,8 @@ if ($mouse) {
 $monitor = Get-First { Get-WmiObject -Class Win32_DesktopMonitor }
 if ($monitor) {
     $data.Monitor = [ordered]@{
-        Description = $monitor.Description
+        Manufacturer = if ($monitor.MonitorManufacturer) { $monitor.MonitorManufacturer } elseif ($monitor.PNPDeviceID) { $monitor.PNPDeviceID } else { $null }
+        Model = if ($monitor.Name) { $monitor.Name } elseif ($monitor.Description) { $monitor.Description } else { $null }
         Status = $monitor.Status
     }
 } else {
@@ -80,7 +104,8 @@ if ($monitor) {
     $vc = Get-First { Get-WmiObject -Class Win32_VideoController }
     if ($vc) {
         $data.VideoController = [ordered]@{
-            Adapter = $vc.Name
+            Manufacturer = if ($vc.AdapterCompatibility) { $vc.AdapterCompatibility } elseif ($vc.DriverVersion) { $vc.DriverVersion } else { $null }
+            Model = if ($vc.Name) { $vc.Name } else { $null }
             VideoModeDescription = $vc.VideoModeDescription
         }
     }
@@ -100,7 +125,6 @@ if ($os) {
 }
 
 # RAM
-$cs = Get-First { Get-WmiObject -Class Win32_ComputerSystem }
 if ($cs) {
     $data.RAM_GB = if ($cs.TotalPhysicalMemory) { [math]::Round($cs.TotalPhysicalMemory / 1GB, 2) } else { $null }
 }
@@ -109,7 +133,7 @@ if ($cs) {
 $data.CollectedAt = (Get-Date).ToString('yyyy-MM-ddTHH:mm:sszzz')
 
 # Convert to JSON and save as UTF8 (no BOM)
-$json = $data | ConvertTo-Json -Depth 6 -Compress
+$json = $data | ConvertTo-Json -Depth 8 -Compress
 Set-Content -Path $outFile -Value $json -Encoding UTF8
 
 Write-Host "Saved system info JSON to: $outFile"
